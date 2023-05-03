@@ -5,7 +5,7 @@ if (!require(pacman)) {
 pacman::p_load(stringr, readxl, openxlsx, tidyverse, lubridate, 
                reshape, reshape2, plotly)
 
-retail <- read_excel("Downloads/Online Retail.xlsx")
+retail <- read_excel("Online Retail.xlsx")
 
 # exclude duplicates
 retail_wd <- retail %>% group_by(across(everything())) %>%
@@ -31,6 +31,7 @@ country_percentages <- country_counts2 %>%
   mutate(percent_orders = total_orders / sum(total_orders) * 100) %>%
   arrange(desc(percent_orders)) 
 
+# select top 10 countries by the total number of transactions
 country_percentages_10<-country_percentages%>%slice(1:10)
 
 # Create a bar chart that shows the percentage of orders from each country
@@ -44,16 +45,22 @@ ggplot(country_percentages_10, aes(x = reorder(Country, -percent_orders), y = pe
   ylab("Percentage of Orders") +
   guides(fill = "none")
 
-# create a column indicating whether the transaction was cancelled
+# create a column indicating whether the order was cancelled
 
 retail_wd$cancelled<-ifelse(grepl("c|C",retail_wd$InvoiceNo),1,0)
+
+# 9251 out of 536641 orders were cancelled
 sum(retail_wd$cancelled)
+
+# exclude cancelled orders
 retail_<-retail_wd[retail_wd$cancelled==0,]
 
 # create a column indicating transactions with the negative amount of items
 
 retail_$negative<-ifelse(grepl("-",retail_$Quantity),1,0)
+# 1336 orders have negative quantity
 sum(retail_$negative)
+# exclude them
 retail_cl<-retail_[retail_$negative==0,]
 
 # filter for only transactions from UK
@@ -69,7 +76,7 @@ apply(retail_uk,2,count_r)
 retail_uk_noNA<-na.omit(retail_uk)
 apply(retail_uk_noNA,2,count_r)
 
-# Time cohorts analysis
+##### 1) Time cohorts analysis
 
 summary(retail_uk_noNA$InvoiceDate)
 
@@ -145,11 +152,14 @@ heatmap_mx <- as.matrix(df_matrix_divided_back)
 heatmap_mx_melt <- melt(heatmap_mx)
 head(heatmap_mx_melt)
 
-ggplot(heatmap_mx_melt, aes(Var1, Var2)) +
+ggplot(heatmap_mx_melt, aes(Var2, Var1)) +
   geom_tile(aes(fill = value)) +
-  labs(x = "CohortMonth", y = "CohortIndex") +
+  labs(x = "CohortMonth", y = "CohortIndex", fill = "value") +
   scale_fill_gradient(low = "green", high = "black", na.value = "lightgray") +
-  theme_classic()
+  theme_classic() +
+  scale_y_discrete(limits = rev(levels(factor(heatmap_mx_melt$Var1)))) +
+  geom_text(aes(label = value), color = "white")
+
 
 # with plotly
 
@@ -159,6 +169,7 @@ heatmap_plot <- plot_ly(z = heatmap_mx, type = "heatmap")
 heatmap_plot <- layout(heatmap_plot, yaxis = list(title = "", tickmode = "array",
                                                   tickvals = 0:nrow(heatmap_mx),
                                                   ticktext = rownames(heatmap_mx)))
+
 
 # display the plot
 heatmap_plot
