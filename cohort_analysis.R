@@ -171,7 +171,6 @@ heatmap_plot <- layout(heatmap_plot, yaxis = list(title = "", tickmode = "array"
                                                   tickvals = 0:nrow(heatmap_mx),
                                                   ticktext = rownames(heatmap_mx)))
 
-
 # display the plot
 heatmap_plot
 
