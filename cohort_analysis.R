@@ -4,7 +4,7 @@ if (!require(pacman)) {
 }
 
 pacman::p_load(stringr, readxl, openxlsx, tidyverse, lubridate, 
-               reshape, reshape2, plotly)
+               reshape, reshape2, plotly, psych)
 
 retail <- read_excel("Online Retail.xlsx")
 
@@ -61,21 +61,23 @@ retail_<-retail_wd[retail_wd$cancelled==0,]
 retail_$negative<-ifelse(grepl("-",retail_$Quantity),1,0)
 # 1336 orders have negative quantity
 sum(retail_$negative)
-# exclude them
-retail_cl<-retail_[retail_$negative==0,]
+check <- retail_[retail_$negative==1,] #CustomerID is NA here
+sum(is.na(check$CustomerID))
+# exclude cases when CustomerID is NA
+retail_cl<-retail_[!is.na(retail_$CustomerID),]
 
 # filter for only transactions from UK
 
-retail_uk <- retail_cl[retail_cl$Country=="United Kingdom",]
+retail_uk_noNA <- retail_cl[retail_cl$Country=="United Kingdom",]
 
-str(retail_uk)
+str(retail_uk_noNA)
 
-apply(retail_uk,2,count_r)
+apply(retail_uk_noNA,2,count_r)
 
 # exclude transactions that have missing data in any of the column
 
-retail_uk_noNA<-na.omit(retail_uk)
-apply(retail_uk_noNA,2,count_r)
+# retail_uk_noNA<-na.omit(retail_uk)
+# apply(retail_uk_noNA,2,count_r)
 
 ##### 1) Time cohorts analysis
 
@@ -174,4 +176,17 @@ heatmap_plot <- layout(heatmap_plot, yaxis = list(title = "", tickmode = "array"
 # display the plot
 heatmap_plot
 
+##### 2) RFM (Recency, Frequency, Monetary) analysis
 
+# Calculate a monetary value of each transaction
+
+retail_uk_noNA$TotalSum <- retail_uk_noNA$Quantity*retail_uk_noNA$UnitPrice
+summary(retail_uk_noNA$TotalSum)
+describe(retail_uk_noNA$TotalSum)
+
+# Set a snapshot date - the day on which we do the analysis
+
+snapshot <- max(retail_uk_noNA$InvoiceMonth)+1
+limit <- snapshot - 365
+
+retail_rfc <- retail_uk_noNA[retail_uk_noNA$InvoiceMonth>=limit,]
