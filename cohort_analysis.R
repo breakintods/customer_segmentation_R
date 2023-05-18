@@ -189,4 +189,20 @@ describe(retail_uk_noNA$TotalSum)
 snapshot <- max(retail_uk_noNA$InvoiceMonth)+1
 limit <- snapshot - 365
 
-retail_rfc <- retail_uk_noNA[retail_uk_noNA$InvoiceMonth>=limit,]
+# confine the data to a period of one year
+retail_rfm <- retail_uk_noNA[retail_uk_noNA$InvoiceMonth>=limit,]
+
+# add a column with the snapshot date
+retail_rfm$snapshot <- snapshot 
+
+
+# calculate RFM metrics for each customer
+
+  
+RFM <- retail_rfm%>%group_by(
+  CustomerID
+) %>% summarise(
+  Recency = snapshot - max(InvoiceMonth),
+  Frequency = n_distinct(InvoiceNo),
+  MonetaryValue = sum(TotalSum)
+) 
