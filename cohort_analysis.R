@@ -44,7 +44,8 @@ ggplot(country_percentages_10, aes(x = reorder(Country, -percent_orders), y = pe
   ggtitle("Top 10 Countries by Percentage of Orders") +
   xlab("Country") +
   ylab("Percentage of Orders") +
-  guides(fill = "none")
+  guides(fill = "none") +
+  theme_classic()
 
 # create a column indicating whether the order was cancelled
 
@@ -74,11 +75,6 @@ str(retail_uk_noNA)
 
 apply(retail_uk_noNA,2,count_r)
 
-# exclude transactions that have missing data in any of the column
-
-# retail_uk_noNA<-na.omit(retail_uk)
-# apply(retail_uk_noNA,2,count_r)
-
 ##### 1) Time cohorts analysis
 
 summary(retail_uk_noNA$InvoiceDate)
@@ -87,7 +83,7 @@ summary(retail_uk_noNA$InvoiceDate)
 
 retail_uk_noNA$InvoiceMonth <- as.Date(retail_uk_noNA$InvoiceDate)
 
-# find a first day for each transaction
+# when each customer made a purchase for the first time?
 
 first_day_of_transac <- retail_uk_noNA %>%
   group_by(CustomerID) %>%
@@ -111,6 +107,8 @@ retail_uk_noNA$CohortIndex <- as.numeric(difftime(retail_uk_noNA$InvoiceMonth,
                                                   units = "days")) / 30.44
 
 # Replace the numbers with digits after decimal point (e.g 4.65 -> 4)
+# This step might affect the difference in my results and in the tutorial!
+# Though the trends are the same as in the tutorial
 retail_uk_noNA$CohortIndex <- floor(retail_uk_noNA$CohortIndex)
 
 # calculate how many customers made a purchase in the following months after the 1st purchase
@@ -118,8 +116,8 @@ retail_uk_noNA$CohortIndex <- floor(retail_uk_noNA$CohortIndex)
 df_count <- aggregate(CustomerID ~ CohortMonth + CohortIndex, data = retail_uk_noNA, FUN = length)
 
 # create a matrix
-# rows: the date of the first purchase
-# columns: the ordinal number of the months after the first purchase was done
+# rows: the date of the first purchase (CohortMonth)
+# columns: the ordinal number of the months after the first purchase was done (CohortIndex)
 
 df_matrix <- dcast(df_count, CohortMonth ~ CohortIndex, 
                    value.var = "CustomerID")
@@ -129,15 +127,16 @@ df_matrix <- dcast(df_count, CohortMonth ~ CohortIndex,
 # calculate Retention rate
 # column "0" - amount of transactions made at a CohortMonth
 
-# Define a modified function to divide each row by its second value, excluding the first element
+# Define a function to divide the values in each row by 
+# the first element in the row
 divide_by_second_excluding_id <- function(x) {
   x <- round((x / x[1])*100, 0)
   return(x)
 }
 
-# Apply the modified function to each row of the data frame, excluding the ID column
+# Apply the function to each row of the data frame, excluding the first ID column
 df_matrix_divided <- apply(df_matrix[, -1], 1, divide_by_second_excluding_id)
-
+# transpose a matrix
 df_matrix_divided <- as.data.frame(t(df_matrix_divided))
   
 # Combine the result with the ID column
@@ -145,36 +144,23 @@ df_matrix_divided_back <- cbind(df_matrix[, 1], df_matrix_divided)
 rownames(df_matrix_divided_back ) <- df_matrix_divided_back [, 1]
 df_matrix_divided_back <- df_matrix_divided_back[, -1]
 
-heatmap_mx <- as.matrix(df_matrix_divided_back)
-
-
-
 
 # create a heatmap with with ggplot
 
+heatmap_mx <- as.matrix(df_matrix_divided_back)
 heatmap_mx_melt <- melt(heatmap_mx)
-head(heatmap_mx_melt)
 
 ggplot(heatmap_mx_melt, aes(Var2, Var1)) +
   geom_tile(aes(fill = value)) +
   labs(x = "CohortMonth", y = "CohortIndex", fill = "value") +
-  scale_fill_gradient(low = "green", high = "black", na.value = "lightgray") +
+  scale_fill_gradient(low = "#FF8C00", high = "#8B4500", na.value = "#FFFFFF") +
   theme_classic() +
   scale_y_discrete(limits = rev(levels(factor(heatmap_mx_melt$Var1)))) +
-  geom_text(aes(label = value), color = "white")
+  geom_text(aes(label = ifelse(is.na(value), "", paste0(value, "%"))), color = "white") +
+  ggtitle("Retention rates") +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
-# with plotly
-
-heatmap_plot <- plot_ly(z = heatmap_mx, type = "heatmap")
-
-# modify the layout to show row names on y-axis
-heatmap_plot <- layout(heatmap_plot, yaxis = list(title = "", tickmode = "array",
-                                                  tickvals = 0:nrow(heatmap_mx),
-                                                  ticktext = rownames(heatmap_mx)))
-
-# display the plot
-heatmap_plot
 
 ##### 2) RFM (Recency, Frequency, Monetary) analysis
 
@@ -206,3 +192,8 @@ RFM <- retail_rfm%>%group_by(
   Frequency = n_distinct(InvoiceNo),
   MonetaryValue = sum(TotalSum)
 ) 
+
+# Add RFM scores
+
+
+
