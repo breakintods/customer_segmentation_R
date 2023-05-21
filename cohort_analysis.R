@@ -4,7 +4,7 @@ if (!require(pacman)) {
 }
 
 pacman::p_load(stringr, readxl, openxlsx, tidyverse, lubridate, 
-               reshape, reshape2, plotly, psych)
+               reshape, reshape2, plotly, psych, gridExtra)
 
 retail <- read_excel("Online Retail.xlsx")
 
@@ -22,7 +22,7 @@ apply(retail_wd,2,count_r)
 # create a list of unique transactions with the corresponding country data
 country_counts <- retail_wd %>%
   group_by(Country, InvoiceNo) %>%
-  summarize(total_orders = n())
+  summarize(total_orders = n(), .groups = "drop")
 # count the number of transactions per each country
 country_counts2<-country_counts%>%group_by(Country)%>%summarize(total_orders = n())
 
@@ -138,7 +138,7 @@ divide_by_second_excluding_id <- function(x) {
 df_matrix_divided <- apply(df_matrix[, -1], 1, divide_by_second_excluding_id)
 # transpose a matrix
 df_matrix_divided <- as.data.frame(t(df_matrix_divided))
-  
+
 # Combine the result with the ID column
 df_matrix_divided_back <- cbind(df_matrix[, 1], df_matrix_divided)
 rownames(df_matrix_divided_back ) <- df_matrix_divided_back [, 1]
@@ -184,7 +184,7 @@ retail_rfm$snapshot <- snapshot
 
 # calculate RFM metrics for each customer
 
-  
+
 RFM <- retail_rfm%>%group_by(
   CustomerID
 ) %>% summarise(
@@ -195,5 +195,162 @@ RFM <- retail_rfm%>%group_by(
 
 # Add RFM scores
 
+# convert difftime to numeric
+RFM$Recency <- as.numeric(RFM$Recency)
+RFM$Frequency <- as.numeric(RFM$Frequency)
+
+# create quartiles
+# commented script doesn't work, however explains the logic
+
+# RFM <- RFM %>% mutate(R = case_when(
+#   Recency <= quantile(Recency,0.25) ~ 4
+#   ,Recency > quantile(Recency,0.25) & Recency <= quantile(Recency,0.5) ~ 3
+#   ,Recency > quantile(Recency,0.5) & Recency <= quantile(Recency,0.75) ~ 2
+#   ,TRUE ~ 1
+# )
+# ,"F" = case_when(
+#   Frequency <= quantile(Frequency,0.25) ~ 1
+#   ,Frequency > quantile(Frequency,0.25) & Frequency <= quantile(Frequency,0.5) ~ 2
+#   ,Frequency > quantile(Frequency,0.5) & Frequency <= quantile(Frequency,0.75) ~ 3
+#   ,TRUE ~ 4
+#   )
+# ,M = case_when(
+#   MonetaryValue <= quantile(MonetaryValue,0.25) ~ 1
+#   ,MonetaryValue > quantile(MonetaryValue,0.25) & MonetaryValue <= quantile(MonetaryValue,0.5) ~ 2
+#   ,MonetaryValue > quantile(MonetaryValue,0.5) & MonetaryValue <= quantile(MonetaryValue,0.75) ~ 3
+#   ,TRUE ~ 4
+# ))
+
+quantiles_R <- quantile(RFM$Recency, probs = c(0, 0.25, 0.5, 0.75, 1))
+quantiles_F <- quantile(RFM$Frequency, probs = c(0, 0.25, 0.5, 0.75, 1))
+quantiles_M <- quantile(RFM$MonetaryValue, probs = c(0, 0.25, 0.5, 0.75, 1))
+
+RFM$R <- cut(RFM$Recency, 
+             breaks = quantiles_R, 
+             labels = c("4", "3", "2", "1"), include.lowest = TRUE)
+
+RFM$"F" <- cut(RFM$Frequency, 
+               breaks = quantiles_F, 
+               labels = c("1", "2", "3", "4"), include.lowest = TRUE)
+
+RFM$M <- cut(RFM$MonetaryValue, 
+             breaks = quantiles_M, 
+             labels = c("1", "2", "3", "4"), include.lowest = TRUE)
+
+RFM$RFM_Segment <- paste0(RFM$R,RFM$"F",RFM$M)
+
+# first convert factor to character and then to numeric
+RFM$R <- as.numeric(as.character(RFM$R))
+RFM$"F" <- as.numeric(as.character(RFM$"F"))
+RFM$M <- as.numeric(as.character(RFM$M))
+
+RFM$RFM_Score <- RFM$R + RFM$"F" + RFM$M
+
+RFM_Score_groups <- RFM %>% group_by(RFM_Score) %>%
+  summarise(Recency_av = mean(Recency)
+            ,Frequency_av = mean(Frequency)
+            ,MonetaryValue_av = mean(MonetaryValue)
+            ,count = n())
+
+RFM <- RFM %>% mutate(
+  General_Segment = case_when(
+    RFM_Score >= 9 ~ "Top"
+    ,RFM_Score >=5 & RFM_Score < 9 ~ "Middle"
+    ,TRUE ~ "Low"
+  )
+)
+
+General_Segment_groups <- RFM %>% group_by(General_Segment) %>%
+  summarise(
+    Recency_av = mean(Recency)
+    ,Frequency_av = mean(Frequency)
+    ,MonetaryValue_av = mean(MonetaryValue)
+    ,count = n()
+  )
+
+# Processing data for K-Means clustering
+
+# assumptions of the algorithm
+
+# 1) the variables distributed symmetrically
+# 2) variables have similar average values and standard deviations
+
+grid.arrange(
+  
+  ggplot(RFM, aes(Recency)) +
+  geom_density() +
+  labs(y = "") +
+  theme_classic()
+
+,ggplot(RFM, aes(Frequency)) +
+  geom_density() +
+  labs(y = "") +
+  theme_classic()
+
+,ggplot(RFM, aes(MonetaryValue)) +
+  geom_density() +
+  labs(y = "") +
+  theme_classic()
+
+,ncol = 1, nrow = 3)
+
+# check the data
+
+describe(RFM)
+RFM[RFM$MonetaryValue==0,]
+RFM <- RFM[!(RFM$MonetaryValue==0),]
+
+# apply log transformation
+
+RFM$Recency <- log(RFM$Recency)
+RFM$Frequency <- log(RFM$Frequency)
+RFM$MonetaryValue <- log(RFM$MonetaryValue)
+
+grid.arrange(
+  
+  ggplot(RFM, aes(Recency)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ggplot(RFM, aes(Frequency)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ggplot(RFM, aes(MonetaryValue)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ncol = 1, nrow = 3)
+
+describe(RFM)
+
+# standardize the data
+
+RFM$Recency <- scale(RFM$Recency)
+RFM$Frequency <- scale(RFM$Frequency)
+RFM$MonetaryValue <- scale(RFM$MonetaryValue)
 
 
+grid.arrange(
+  
+  ggplot(RFM, aes(Recency)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ggplot(RFM, aes(Frequency)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ggplot(RFM, aes(MonetaryValue)) +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+  
+  ,ncol = 1, nrow = 3)
+
+describe(RFM)
