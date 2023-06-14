@@ -4,7 +4,7 @@ if (!require(pacman)) {
 }
 
 pacman::p_load(stringr, readxl, openxlsx, tidyverse, lubridate, 
-               reshape, reshape2, plotly, psych, gridExtra)
+               reshape, reshape2, plotly, psych, gridExtra, cluster)
 
 retail <- read_excel("Online Retail.xlsx")
 
@@ -278,16 +278,19 @@ General_Segment_groups <- RFM %>% group_by(General_Segment) %>%
 grid.arrange(
   
   ggplot(RFM, aes(Recency)) +
+    geom_histogram(aes(y = ..density..), binwidth = 10, fill = "lightblue", color = "black") +
   geom_density() +
   labs(y = "") +
   theme_classic()
 
 ,ggplot(RFM, aes(Frequency)) +
+  geom_histogram(aes(y = ..density..), binwidth = 5, fill = "lightblue", color = "black") +
   geom_density() +
   labs(y = "") +
   theme_classic()
 
 ,ggplot(RFM, aes(MonetaryValue)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1000, fill = "lightblue", color = "black") +
   geom_density() +
   labs(y = "") +
   theme_classic()
@@ -309,16 +312,19 @@ RFM$MonetaryValue <- log(RFM$MonetaryValue)
 grid.arrange(
   
   ggplot(RFM, aes(Recency)) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
   ,ggplot(RFM, aes(Frequency)) +
+    geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
   ,ggplot(RFM, aes(MonetaryValue)) +
+    geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
@@ -337,16 +343,19 @@ RFM$MonetaryValue <- scale(RFM$MonetaryValue)
 grid.arrange(
   
   ggplot(RFM, aes(Recency)) +
+    geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
   ,ggplot(RFM, aes(Frequency)) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
   ,ggplot(RFM, aes(MonetaryValue)) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
@@ -354,3 +363,16 @@ grid.arrange(
   ,ncol = 1, nrow = 3)
 
 describe(RFM)
+
+# Clustering with K-Means
+
+sse <- c()  # Create an empty vector to store SSE values
+
+# Fit KMeans and calculate SSE for each k
+for (k in 1:20) {
+  # Initialize KMeans with k clusters
+  kmeans <- kmeans(RFM, centers = k, nstart = 1, algorithm = "Lloyd")
+  
+  # Calculate sum of squared errors (SSE)
+  sse[k] <- kmeans$tot.withinss
+}
