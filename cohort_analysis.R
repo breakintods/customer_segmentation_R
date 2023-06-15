@@ -4,7 +4,8 @@ if (!require(pacman)) {
 }
 
 pacman::p_load(stringr, readxl, openxlsx, tidyverse, lubridate, 
-               reshape, reshape2, plotly, psych, gridExtra, cluster)
+               reshape, reshape2, plotly, psych, gridExtra, 
+               cluster, factoextra)
 
 retail <- read_excel("Online Retail.xlsx")
 
@@ -305,25 +306,25 @@ RFM <- RFM[!(RFM$MonetaryValue==0),]
 
 # apply log transformation
 
-RFM$Recency <- log(RFM$Recency)
-RFM$Frequency <- log(RFM$Frequency)
-RFM$MonetaryValue <- log(RFM$MonetaryValue)
+RFM$ln_Recency <- log(RFM$Recency)
+RFM$ln_Frequency <- log(RFM$Frequency)
+RFM$ln_MonetaryValue <- log(RFM$MonetaryValue)
 
 grid.arrange(
   
-  ggplot(RFM, aes(Recency)) +
+  ggplot(RFM, aes(ln_Recency)) +
     geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
-  ,ggplot(RFM, aes(Frequency)) +
+  ,ggplot(RFM, aes(ln_Frequency)) +
     geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
     theme_classic()
   
-  ,ggplot(RFM, aes(MonetaryValue)) +
+  ,ggplot(RFM, aes(ln_MonetaryValue)) +
     geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
     geom_density() +
     labs(y = "") +
@@ -333,46 +334,99 @@ grid.arrange(
 
 describe(RFM)
 
-# standardize the data
-
-RFM$Recency <- scale(RFM$Recency)
-RFM$Frequency <- scale(RFM$Frequency)
-RFM$MonetaryValue <- scale(RFM$MonetaryValue)
-
-
-grid.arrange(
-  
-  ggplot(RFM, aes(Recency)) +
-    geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
-    geom_density() +
-    labs(y = "") +
-    theme_classic()
-  
-  ,ggplot(RFM, aes(Frequency)) +
-    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
-    geom_density() +
-    labs(y = "") +
-    theme_classic()
-  
-  ,ggplot(RFM, aes(MonetaryValue)) +
-    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
-    geom_density() +
-    labs(y = "") +
-    theme_classic()
-  
-  ,ncol = 1, nrow = 3)
-
-describe(RFM)
+# # standardize the data
+# 
+# RFM$sc_Recency <- scale(RFM$ln_Recency)
+# RFM$sc_Frequency <- scale(RFM$ln_Frequency)
+# RFM$sc_MonetaryValue <- scale(RFM$ln_MonetaryValue)
+# 
+# 
+# grid.arrange(
+#   
+#   ggplot(RFM, aes(sc_Recency)) +
+#     geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
+#     geom_density() +
+#     labs(y = "") +
+#     theme_classic()
+#   
+#   ,ggplot(RFM, aes(sc_Frequency)) +
+#     geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
+#     geom_density() +
+#     labs(y = "") +
+#     theme_classic()
+#   
+#   ,ggplot(RFM, aes(sc_MonetaryValue)) +
+#     geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
+#     geom_density() +
+#     labs(y = "") +
+#     theme_classic()
+#   
+#   ,ncol = 1, nrow = 3)
+# 
+# describe(RFM)
 
 # Clustering with K-Means
 
-sse <- c()  # Create an empty vector to store SSE values
+rfm_norm <- RFM%>%ungroup()%>%select(ln_Recency,ln_Frequency,ln_MonetaryValue)
 
-# Fit KMeans and calculate SSE for each k
-for (k in 1:20) {
-  # Initialize KMeans with k clusters
-  kmeans <- kmeans(RFM, centers = k, nstart = 1, algorithm = "Lloyd")
-  
-  # Calculate sum of squared errors (SSE)
-  sse[k] <- kmeans$tot.withinss
+# Define optimal number of clusters using elbow method
+
+# max_clusters is the maximum number of clusters to test
+max_clusters <- 20
+wcss <- vector("numeric", max_clusters)
+
+for (i in 1:max_clusters) {
+  kmeans_model <- kmeans(rfm_norm, centers = i, nstart = 25)
+  wcss[i] <- kmeans_model$tot.withinss
 }
+
+# Plot the elbow curve
+par(mar = c(2, 2, 2, 2)) #adjust margines of the plot
+plot(1:max_clusters, wcss, type = "b", xlab = "Number of Clusters",
+     ylab = "Within-Cluster Sum of Squares (WCSS)")
+
+# the plot suggests 3 clusters ("elbow" point)
+
+num_clusters <- 4  
+
+kmeans_model <- kmeans(rfm_norm, centers = num_clusters, nstart = 25)
+
+# Add cluster labels to the original RFM data
+rfm_data_clustered <- cbind(RFM, Cluster = kmeans_model$cluster)
+
+# View cluster centers
+kmeans_model$centers
+
+# Visualize the clusters using a scatter plot (using factoextra package)
+fviz_cluster(kmeans_model, data = rfm_norm, stand = FALSE,
+             geom = "point", ellipse.type = "convex", ggtheme = theme_minimal())
+
+# Compare the values mean RFM values in "manual" and K-Means clusters
+
+RFM %>% group_by(General_Segment) %>% 
+  summarise (R_mean = mean(Recency)
+             ,F_mean = mean(Frequency)
+             ,M_mean = mean(MonetaryValue))
+
+rfm_data_clustered %>% group_by(Cluster) %>%
+  summarise (R_mean = mean(Recency)
+             ,F_mean = mean(Frequency)
+             ,M_mean = mean(MonetaryValue))
+
+# create snake plot
+data_norm_k4 <- rfm_data_clustered %>%
+  select(CustomerID, Cluster, ln_Recency, ln_Frequency, ln_MonetaryValue)
+data_melt <- melt(data_norm_k4,
+                  id.vars = c("CustomerID", "Cluster"),
+                  measure.vars = c("ln_Recency", "ln_Frequency", "ln_MonetaryValue"),
+                  variable.name = "Attribute",
+                  value.name = "Value") 
+
+agg_data_melt <- data_melt %>% group_by(Cluster, Attribute) %>%
+  summarise(mean_Value = mean(Value)) %>% ungroup()
+
+ggplot(data = agg_data_melt, aes(x = Attribute, y = mean_Value, 
+                                 color = factor(Cluster), group = Cluster)) +
+  geom_line() +
+  labs(title = "Snake plot of log-normallised variables") +
+  theme_minimal()
