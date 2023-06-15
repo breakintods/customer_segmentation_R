@@ -334,40 +334,40 @@ grid.arrange(
 
 describe(RFM)
 
-# # standardize the data
-# 
-# RFM$sc_Recency <- scale(RFM$ln_Recency)
-# RFM$sc_Frequency <- scale(RFM$ln_Frequency)
-# RFM$sc_MonetaryValue <- scale(RFM$ln_MonetaryValue)
-# 
-# 
-# grid.arrange(
-#   
-#   ggplot(RFM, aes(sc_Recency)) +
-#     geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
-#     geom_density() +
-#     labs(y = "") +
-#     theme_classic()
-#   
-#   ,ggplot(RFM, aes(sc_Frequency)) +
-#     geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
-#     geom_density() +
-#     labs(y = "") +
-#     theme_classic()
-#   
-#   ,ggplot(RFM, aes(sc_MonetaryValue)) +
-#     geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
-#     geom_density() +
-#     labs(y = "") +
-#     theme_classic()
-#   
-#   ,ncol = 1, nrow = 3)
-# 
-# describe(RFM)
+# standardize the data
+
+RFM$sc_Recency <- scale(RFM$ln_Recency)
+RFM$sc_Frequency <- scale(RFM$ln_Frequency)
+RFM$sc_MonetaryValue <- scale(RFM$ln_MonetaryValue)
+
+
+grid.arrange(
+
+  ggplot(RFM, aes(sc_Recency)) +
+    geom_histogram(aes(y = ..density..),  fill = "lightblue", color = "black") +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+
+  ,ggplot(RFM, aes(sc_Frequency)) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+
+  ,ggplot(RFM, aes(sc_MonetaryValue)) +
+    geom_histogram(aes(y = ..density..), fill = "lightblue", color = "black") +
+    geom_density() +
+    labs(y = "") +
+    theme_classic()
+
+  ,ncol = 1, nrow = 3)
+
+describe(RFM)
 
 # Clustering with K-Means
 
-rfm_norm <- RFM%>%ungroup()%>%select(ln_Recency,ln_Frequency,ln_MonetaryValue)
+rfm_norm <- RFM%>%ungroup()%>%select(sc_Recency,sc_Frequency,sc_MonetaryValue)
 
 # Define optimal number of clusters using elbow method
 
@@ -415,10 +415,10 @@ rfm_data_clustered %>% group_by(Cluster) %>%
 
 # create snake plot
 data_norm_k4 <- rfm_data_clustered %>%
-  select(CustomerID, Cluster, ln_Recency, ln_Frequency, ln_MonetaryValue)
+  select(CustomerID, Cluster, sc_Recency, sc_Frequency, sc_MonetaryValue)
 data_melt <- melt(data_norm_k4,
                   id.vars = c("CustomerID", "Cluster"),
-                  measure.vars = c("ln_Recency", "ln_Frequency", "ln_MonetaryValue"),
+                  measure.vars = c("sc_Frequency", "sc_MonetaryValue", "sc_Recency"),
                   variable.name = "Attribute",
                   value.name = "Value") 
 
@@ -428,5 +428,5 @@ agg_data_melt <- data_melt %>% group_by(Cluster, Attribute) %>%
 ggplot(data = agg_data_melt, aes(x = Attribute, y = mean_Value, 
                                  color = factor(Cluster), group = Cluster)) +
   geom_line() +
-  labs(title = "Snake plot of log-normallised variables") +
+  labs(title = "Snake plot of standardized variables") +
   theme_minimal()
